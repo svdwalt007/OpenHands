@@ -25,11 +25,13 @@ export function ContextMenuContainer({
         // Base styling - same for ALL modes (SaaS, OSS, mobile, desktop)
         "absolute rounded-[12px] p-[25px]",
         "bg-[#050505] border border-[#242424]",
-        "text-white overflow-hidden z-[9999]",
+        "text-white overflow-y-auto z-[9999]",
         "context-menu-box-shadow",
         // Positioning
         "right-0 md:right-auto md:left-full md:bottom-0",
         "w-fit",
+        // Constrain height to viewport with some padding
+        "max-h-[calc(100vh-2rem)]",
         className,
       )}
     >
