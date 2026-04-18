@@ -664,7 +664,8 @@ describe("SdkSectionPage", () => {
     await userEvent.type(endpointInput, "https://api.changed.example.com");
     await userEvent.click(screen.getByTestId("save-button"));
 
-    expect(await screen.findByTestId("confirmation-modal")).toBeInTheDocument();
+    const confirmationModal = await screen.findByTestId("confirmation-modal");
+    expect(confirmationModal).toBeInTheDocument();
     expect(saveSettingsSpy).not.toHaveBeenCalled();
 
     await userEvent.click(screen.getByTestId("confirm-button"));

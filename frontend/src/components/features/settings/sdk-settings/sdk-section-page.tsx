@@ -38,6 +38,7 @@ import { SchemaField } from "./schema-field";
 import { ViewToggle } from "./view-toggle";
 
 const EMPTY_EXCLUDE_KEYS = new Set<string>();
+const HIDDEN_SETTINGS_LABEL_PREVIEW_LIMIT = 3;
 
 const VIEW_ORDER: Record<SettingsView, number> = {
   basic: 0,
@@ -50,6 +51,15 @@ const getLessDetailedView = (
   nextView: SettingsView,
 ): SettingsView =>
   VIEW_ORDER[nextView] < VIEW_ORDER[currentView] ? nextView : currentView;
+
+const formatHiddenSettingsLabelPreview = (labels: string[]): string => {
+  const preview = labels
+    .slice(0, HIDDEN_SETTINGS_LABEL_PREVIEW_LIMIT)
+    .join(", ");
+  return labels.length <= HIDDEN_SETTINGS_LABEL_PREVIEW_LIMIT
+    ? preview
+    : `${preview}, …`;
+};
 
 export interface SdkSectionHeaderProps {
   values: SettingsFormValues;
@@ -133,6 +143,8 @@ export function SdkSectionPage({
     React.useState(false);
   const [hiddenSettingsResetCount, setHiddenSettingsResetCount] =
     React.useState(0);
+  const [hiddenSettingsResetLabels, setHiddenSettingsResetLabels] =
+    React.useState<string[]>([]);
   const hasHydratedViewRef = React.useRef(false);
 
   const sectionKeysSignature = React.useMemo(
@@ -180,6 +192,7 @@ export function SdkSectionPage({
     setDirty({});
     setIsHiddenSettingsModalOpen(false);
     setHiddenSettingsResetCount(0);
+    setHiddenSettingsResetLabels([]);
   }, [scope, settingsSource, sectionKeysSignature]);
 
   React.useEffect(() => {
@@ -234,6 +247,9 @@ export function SdkSectionPage({
 
     if (!resetHiddenFields && hiddenFieldsToReset.length > 0) {
       setHiddenSettingsResetCount(hiddenFieldsToReset.length);
+      setHiddenSettingsResetLabels(
+        hiddenFieldsToReset.map((field) => field.label),
+      );
       setIsHiddenSettingsModalOpen(true);
       return;
     }
@@ -270,6 +286,7 @@ export function SdkSectionPage({
         setDirty({});
         setIsHiddenSettingsModalOpen(false);
         setHiddenSettingsResetCount(0);
+        setHiddenSettingsResetLabels([]);
         onSaveSuccess?.();
       },
     });
@@ -348,10 +365,12 @@ export function SdkSectionPage({
         <ConfirmationModal
           text={t(I18nKey.SETTINGS$CONFIRM_RESET_HIDDEN_FIELDS, {
             count: hiddenSettingsResetCount,
+            fields: formatHiddenSettingsLabelPreview(hiddenSettingsResetLabels),
           })}
           onCancel={() => {
             setIsHiddenSettingsModalOpen(false);
             setHiddenSettingsResetCount(0);
+            setHiddenSettingsResetLabels([]);
           }}
           onConfirm={() => handleSave(true)}
         />

@@ -451,6 +451,9 @@ export function buildSdkSettingsPayloadForView(
   const payload: Record<string, unknown> = {};
   const resetHiddenFields = options?.resetHiddenFields ?? false;
 
+  // Saving from a less-detailed view should only touch fields the user can
+  // actually edit there. Hidden schema-backed fields stay out of the payload
+  // unless the caller explicitly confirms resetting their persisted values.
   for (const field of getSchemaFields(schema)) {
     const isVisible =
       isFieldVisibleInView(field, view) &&

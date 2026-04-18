@@ -805,7 +805,7 @@ describe("LlmSettingsScreen", () => {
     });
   });
 
-  it("does not include mcp_config when saving basic LLM settings", async () => {
+  it("only includes dirty visible fields when saving basic LLM settings", async () => {
     const persistedSettings = buildSettingsWithAdvancedToggle({
       llm_model: "openai/gpt-4o",
       agent_settings: {
@@ -839,7 +839,16 @@ describe("LlmSettingsScreen", () => {
       expect(saveSettingsSpy).toHaveBeenCalled();
     });
 
-    const payload = saveSettingsSpy.mock.calls[0][0];
+    const payload = saveSettingsSpy.mock.calls[0][0] as {
+      agent_settings?: {
+        llm?: Record<string, unknown>;
+        mcp_config?: unknown;
+      };
+    };
+    expect(payload.agent_settings?.llm).toEqual(
+      expect.objectContaining({ api_key: "test-api-key" }),
+    );
+    expect(payload.agent_settings?.llm).not.toHaveProperty("model");
     expect(payload.agent_settings).not.toHaveProperty("mcp_config");
   });
 
