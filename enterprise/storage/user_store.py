@@ -969,11 +969,15 @@ class UserStore:
 
     @staticmethod
     def get_kwargs_from_settings(settings: 'Settings'):
-        kwargs = {
-            normalized: getattr(settings, normalized)
-            for c in User.__table__.columns
-            if (normalized := c.name.lstrip('_')) and hasattr(settings, normalized)
-        }
+        kwargs = {}
+        for c in User.__table__.columns:
+            normalized = c.name.lstrip('_')
+            if normalized and hasattr(settings, normalized):
+                value = getattr(settings, normalized)
+                # LLMProfiles must be serialized to dict for EncryptedJSON storage
+                if normalized == 'llm_profiles' and value is not None:
+                    value = value.model_dump(mode='json')
+                kwargs[normalized] = value
         return kwargs
 
     @staticmethod
