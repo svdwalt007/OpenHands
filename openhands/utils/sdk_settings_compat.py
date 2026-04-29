@@ -12,9 +12,11 @@ try:
     )
 
     try:
-        from openhands.sdk.settings import OpenHandsAgentSettings  # type: ignore[attr-defined]
+        from openhands.sdk.settings import (  # type: ignore[attr-defined]
+            OpenHandsAgentSettings,
+        )
     except ImportError:
-        from openhands.sdk.settings import (  # type: ignore[attr-defined, misc, assignment]
+        from openhands.sdk.settings import (  # type: ignore[attr-defined, misc, assignment, no-redef]
             LLMAgentSettings as OpenHandsAgentSettings,
         )
 
