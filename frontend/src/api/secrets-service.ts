@@ -92,12 +92,17 @@ export class SecretsService {
       description,
     };
 
-    const { status } = await openHands.put(`/api/v1/secrets/${id}`, secret);
+    const { status } = await openHands.put(
+      `/api/v1/secrets/${encodeURIComponent(id)}`,
+      secret,
+    );
     return status === 200;
   }
 
   static async deleteSecret(id: string) {
-    const { status } = await openHands.delete<boolean>(`/api/v1/secrets/${id}`);
+    const { status } = await openHands.delete<boolean>(
+      `/api/v1/secrets/${encodeURIComponent(id)}`,
+    );
     return status === 200;
   }
 

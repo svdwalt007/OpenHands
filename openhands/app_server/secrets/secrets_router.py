@@ -291,7 +291,7 @@ async def create_custom_secret(
     )
 
 
-@router.put('/{secret_id}')
+@router.put('/{secret_id:path}')
 async def update_custom_secret(
     secret_id: str,
     incoming_secret: CustomSecretWithoutValue,
@@ -345,7 +345,7 @@ async def update_custom_secret(
     )
 
 
-@router.delete('/{secret_id}')
+@router.delete('/{secret_id:path}')
 async def delete_custom_secret(
     secret_id: str,
     secrets_store: SecretsStore = Depends(get_secrets_store),
