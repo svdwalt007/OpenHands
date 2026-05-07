@@ -1106,6 +1106,56 @@ async def test_update_org_defaults_async_with_llm_api_key():
 
 
 @pytest.mark.asyncio
+async def test_update_org_defaults_async_normalizes_legacy_agent_kind():
+    """GIVEN: A persisted org row with legacy agent_kind='llm'
+    WHEN: org defaults are patched without specifying agent_kind
+    THEN: the merged settings validate and are normalized to 'openhands'
+    """
+    from server.routes.org_models import OrgUpdate
+
+    org_id = uuid.uuid4()
+    user_id = str(uuid.uuid4())
+    mock_org = Org(
+        id=org_id,
+        name='Legacy Organization',
+        agent_settings={
+            'agent_kind': 'llm',
+            'agent': 'CodeActAgent',
+            'llm': {'model': 'old-model'},
+        },
+    )
+    update_data = OrgUpdate(agent_settings_diff={'llm': {'model': 'new-model'}})
+
+    mock_session = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.first.return_value = mock_org
+    mock_session.execute.return_value = mock_result
+    mock_session.commit = AsyncMock()
+    mock_session.refresh = AsyncMock()
+
+    @asynccontextmanager
+    async def mock_a_session_maker():
+        yield mock_session
+
+    with (
+        patch('storage.org_store.a_session_maker', mock_a_session_maker),
+        patch(
+            'storage.org_store.OrgStore._maybe_get_managed_llm_key_for_user',
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            'storage.org_member_store.OrgMemberStore.update_all_members_settings_async',
+            AsyncMock(),
+        ),
+    ):
+        result = await OrgStore.update_org_defaults_async(org_id, update_data, user_id)
+
+    assert result is not None
+    assert result.agent_settings['agent_kind'] == 'openhands'
+    assert result.agent_settings['llm']['model'] == 'new-model'
+
+
+@pytest.mark.asyncio
 async def test_update_org_defaults_async_propagates_managed_key_reset():
     """GIVEN: A unified OrgUpdate save that resolves to a managed org key
     WHEN: update_org_defaults_async is called

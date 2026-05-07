@@ -249,6 +249,8 @@ class OrgStore:
     ) -> OpenHandsAgentSettings | ConversationSettings:
         """Deep-merge a sparse settings diff and validate the merged result."""
         merged_settings = deep_merge(current_settings or {}, settings_diff)
+        if settings_type is OpenHandsAgentSettings:
+            merged_settings['agent_kind'] = 'openhands'
         return settings_type.model_validate(merged_settings)
 
     @staticmethod
