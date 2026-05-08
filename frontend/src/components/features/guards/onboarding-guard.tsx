@@ -11,7 +11,7 @@ export function OnboardingGuard({ children }: { children: React.ReactNode }) {
   const { data, isLoading } = useOnboardingStatus();
   const { data: config } = useConfig();
   const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
 
   React.useEffect(() => {
     if (isLoading) return;
@@ -21,13 +21,16 @@ export function OnboardingGuard({ children }: { children: React.ReactNode }) {
       data?.should_complete_onboarding &&
       pathname !== "/onboarding"
     ) {
-      navigate("/onboarding", { replace: true });
+      // Preserve current path as returnTo so user returns here after onboarding
+      const returnTo = encodeURIComponent(pathname + search);
+      navigate(`/onboarding?returnTo=${returnTo}`, { replace: true });
     }
   }, [
     config?.feature_flags?.enable_onboarding,
     data?.should_complete_onboarding,
     isLoading,
     pathname,
+    search,
     navigate,
   ]);
 

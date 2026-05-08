@@ -1,6 +1,11 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate, redirect, useLoaderData } from "react-router";
+import {
+  useNavigate,
+  redirect,
+  useLoaderData,
+  useSearchParams,
+} from "react-router";
 import StepHeader from "#/components/features/onboarding/step-header";
 import { StepContent } from "#/components/features/onboarding/step-content";
 import { BrandButton } from "#/components/features/settings/brand-button";
@@ -83,6 +88,8 @@ function getTranslatedInputFields(
 function OnboardingForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get("returnTo");
   const loaderData = useLoaderData<typeof clientLoader>();
   const config = loaderData?.config;
   const { data: onboardingStatus, isLoading: isOnboardingStatusLoading } =
@@ -92,12 +99,14 @@ function OnboardingForm() {
   React.useEffect(() => {
     if (isOnboardingStatusLoading) return;
     if (onboardingStatus?.should_complete_onboarding === false) {
-      navigate("/", { replace: true });
+      // Redirect to returnTo if provided, otherwise to home
+      navigate(returnTo || "/", { replace: true });
     }
   }, [
     onboardingStatus?.should_complete_onboarding,
     isOnboardingStatusLoading,
     navigate,
+    returnTo,
   ]);
 
   const onboardingAppMode: OnboardingAppMode = getOnboardingAppMode(
@@ -181,7 +190,10 @@ function OnboardingForm() {
 
   const handleNext = () => {
     if (isLastStep) {
-      submitOnboarding({ selections: answers });
+      submitOnboarding({
+        selections: answers,
+        returnTo: returnTo || undefined,
+      });
     } else {
       setCurrentStepIndex((prev) => prev + 1);
     }

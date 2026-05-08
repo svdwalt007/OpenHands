@@ -6,6 +6,7 @@ import { displayErrorToast } from "#/utils/custom-toast-handlers";
 
 type SubmitOnboardingArgs = {
   selections: Record<string, string | string[]>;
+  returnTo?: string;
 };
 
 interface OnboardingResponse {
@@ -18,10 +19,10 @@ export const useSubmitOnboarding = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ selections }: SubmitOnboardingArgs) => {
+    mutationFn: async ({ selections, returnTo }: SubmitOnboardingArgs) => {
       const { data } = await openHands.post<OnboardingResponse>(
         "/api/complete_onboarding",
-        { selections },
+        { selections, redirect_url: returnTo },
       );
       return data;
     },

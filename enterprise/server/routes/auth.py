@@ -586,7 +586,9 @@ async def keycloak_callback(
         # Only redirect to onboarding if user has a valid offline token,
         # otherwise they need to complete the Keycloak offline token flow first
         if valid_offline_token and await _should_redirect_to_onboarding(user_id, user):
-            redirect_url = f'{web_url}/onboarding'
+            # Preserve original destination as returnTo param on onboarding URL
+            encoded_return_to = quote(redirect_url, safe='')
+            redirect_url = f'{web_url}/onboarding?returnTo={encoded_return_to}'
             logger.info(
                 'Redirecting returning user to onboarding',
                 extra={'user_id': user_id, 'deployment_mode': DEPLOYMENT_MODE},
@@ -755,7 +757,9 @@ async def _get_post_auth_redirect(
             'Redirecting user to onboarding',
             extra={'user_id': user_id, 'deployment_mode': DEPLOYMENT_MODE},
         )
-        return f'{web_url}/onboarding'
+        # Preserve original destination as returnTo param on onboarding URL
+        encoded_return_to = quote(default_url, safe='')
+        return f'{web_url}/onboarding?returnTo={encoded_return_to}'
     return default_url
 
 
@@ -897,6 +901,15 @@ async def complete_onboarding(request: Request):
             content={'error': 'User is not authenticated'},
         )
 
+    # Get redirect_url from request body if provided
+    redirect_url = '/'
+    try:
+        body = await request.json()
+        if body.get('redirect_url'):
+            redirect_url = body['redirect_url']
+    except Exception:
+        pass
+
     user = await UserStore.mark_onboarding_completed(user_id)
     if not user:
         return JSONResponse(
@@ -911,7 +924,7 @@ async def complete_onboarding(request: Request):
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,
-        content={'message': 'Onboarding completed'},
+        content={'message': 'Onboarding completed', 'redirect_url': redirect_url},
     )
 
 
