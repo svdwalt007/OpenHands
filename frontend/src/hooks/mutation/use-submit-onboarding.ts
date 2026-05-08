@@ -31,6 +31,10 @@ export const useSubmitOnboarding = () => {
       queryClient.invalidateQueries({ queryKey: ["onboarding-status"] });
 
       const finalRedirectUrl = data.redirect_url || "/";
+      // eslint-disable-next-line no-console
+      console.log("[onboarding] redirect_url from API:", data.redirect_url);
+      // eslint-disable-next-line no-console
+      console.log("[onboarding] finalRedirectUrl:", finalRedirectUrl);
       // Check if the redirect URL is an external URL (starts with http or https)
       if (
         finalRedirectUrl.startsWith("http://") ||

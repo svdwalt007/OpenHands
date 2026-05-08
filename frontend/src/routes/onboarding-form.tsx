@@ -90,6 +90,8 @@ function OnboardingForm() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const returnTo = searchParams.get("returnTo");
+  // eslint-disable-next-line no-console
+  console.log("[onboarding-form] returnTo from URL:", returnTo);
   const loaderData = useLoaderData<typeof clientLoader>();
   const config = loaderData?.config;
   const { data: onboardingStatus, isLoading: isOnboardingStatusLoading } =
