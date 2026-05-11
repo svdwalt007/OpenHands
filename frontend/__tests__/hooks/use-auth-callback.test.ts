@@ -103,7 +103,7 @@ describe("useAuthCallback", () => {
     renderHook(() => useAuthCallback());
 
     expect(mockSetLoginMethod).not.toHaveBeenCalled();
-    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(mockNavigate).toHaveBeenCalled(); // Always navigates to clean up URL params
   });
 
   it("should set login method when settings data is undefined (stay_logged_in not set)", () => {
@@ -114,6 +114,7 @@ describe("useAuthCallback", () => {
     renderHook(() => useAuthCallback());
 
     expect(mockSetLoginMethod).toHaveBeenCalledWith("github");
+    expect(mockNavigate).toHaveBeenCalled(); // Always navigates to clean up URL
   });
 
   it("should set login method when settings is null (stay_logged_in not set)", () => {
@@ -123,6 +124,7 @@ describe("useAuthCallback", () => {
     renderHook(() => useAuthCallback());
 
     expect(mockSetLoginMethod).toHaveBeenCalledWith("github");
+    expect(mockNavigate).toHaveBeenCalled(); // Always navigates to clean up URL
   });
 
   it("should navigate to returnTo path after setting login method", () => {
@@ -169,7 +171,8 @@ describe("useAuthCallback", () => {
     renderHook(() => useAuthCallback());
 
     expect(mockSetLoginMethod).not.toHaveBeenCalled();
-    expect(mockNavigate).not.toHaveBeenCalled();
+    // Navigate should still happen to clean up URL params
+    expect(mockNavigate).toHaveBeenCalled();
   });
 
   it("should navigate to '/' when no returnTo is provided", () => {
@@ -189,7 +192,8 @@ describe("useAuthCallback", () => {
 
     renderHook(() => useAuthCallback());
 
-    expect(mockNavigate).not.toHaveBeenCalled();
+    // Navigate should still happen to clean up URL params, but without login_method
+    expect(mockNavigate).toHaveBeenCalled();
   });
 
   it("should handle all valid LoginMethod values when stay_logged_in is true", () => {

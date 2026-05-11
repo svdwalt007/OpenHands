@@ -62,10 +62,11 @@ export const useAuthCallback = () => {
 
     // Only store login method if settings is loaded and stay_logged_in is enabled
     // (handles case where useSettings is disabled on intermediate pages)
+    // Handle undefined/null data as "use default" (stay_logged_in = true when not explicitly set)
+    const stayLoggedIn = settings?.stay_logged_in;
     if (
       Object.values(LoginMethod).includes(loginMethod as LoginMethod) &&
-      settings != null &&
-      settings.stay_logged_in !== false
+      stayLoggedIn !== false
     ) {
       setLoginMethod(loginMethod as LoginMethod);
     }

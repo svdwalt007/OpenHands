@@ -334,6 +334,22 @@ describe("Stay logged in switch", () => {
     vi.spyOn(OptionService, "getConfig").mockResolvedValue(
       createMockWebClientConfig({ app_mode: "saas" }),
     );
+    // SaveSettings receives normalized settings (with all fields) plus callbacks
+    // The mock returns settings with isLoading/error that useSettings wraps
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      MOCK_DEFAULT_USER_SETTINGS,
+    );
+  };
+
+  // Helper for testing stay_logged_in values - ensures getSettings returns the correct mock
+  const mockSaasConfigWithStayLoggedIn = (stayLoggedIn: boolean) => {
+    vi.spyOn(OptionService, "getConfig").mockResolvedValue(
+      createMockWebClientConfig({ app_mode: "saas" }),
+    );
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
+      ...MOCK_DEFAULT_USER_SETTINGS,
+      stay_logged_in: stayLoggedIn,
+    });
   };
 
   it("should not render the stay-logged-in switch in oss mode", async () => {
@@ -425,13 +441,9 @@ describe("Stay logged in switch", () => {
     expect(submit).toBeDisabled();
   });
 
-  it("should submit stay_logged_in: false when switch is turned off", async () => {
+  it("should submit false when switch is turned off", async () => {
     const saveSettingsSpy = vi.spyOn(SettingsService, "saveSettings");
-    mockSaasConfig();
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
-      ...MOCK_DEFAULT_USER_SETTINGS,
-      stay_logged_in: true,
-    });
+    mockSaasConfigWithStayLoggedIn(true);
 
     renderAppSettingsScreen();
 
@@ -441,19 +453,15 @@ describe("Stay logged in switch", () => {
     const submit = await screen.findByTestId("submit-button");
     await userEvent.click(submit);
 
-    expect(saveSettingsSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ stay_logged_in: false }),
-      expect.anything(),
-    );
+    // Verify the key property is present and false
+    expect(saveSettingsSpy).toHaveBeenCalled();
+    const [callArg] = saveSettingsSpy.mock.calls[0];
+    expect(callArg).toHaveProperty("stay_logged_in", false);
   });
 
-  it("should submit stay_logged_in: true when switch is turned on", async () => {
+  it("should submit true when switch is turned on", async () => {
     const saveSettingsSpy = vi.spyOn(SettingsService, "saveSettings");
-    mockSaasConfig();
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
-      ...MOCK_DEFAULT_USER_SETTINGS,
-      stay_logged_in: false,
-    });
+    mockSaasConfigWithStayLoggedIn(false);
 
     renderAppSettingsScreen();
 
@@ -463,10 +471,10 @@ describe("Stay logged in switch", () => {
     const submit = await screen.findByTestId("submit-button");
     await userEvent.click(submit);
 
-    expect(saveSettingsSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ stay_logged_in: true }),
-      expect.anything(),
-    );
+    // Verify the key property is present and true
+    expect(saveSettingsSpy).toHaveBeenCalled();
+    const [callArg] = saveSettingsSpy.mock.calls[0];
+    expect(callArg).toHaveProperty("stay_logged_in", true);
   });
 
   it("should reset stayLoggedInSwitchHasChanged to false after successful save", async () => {
