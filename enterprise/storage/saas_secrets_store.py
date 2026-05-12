@@ -125,9 +125,9 @@ class SaasSecretsStore(SecretsStore):
                 kwargs[key] = self._jwt_svc.encrypt_value(value)
 
     @classmethod
-    async def get_instance(
+    async def get_instance(  # type: ignore[override]
         cls,
-        user_id: str,  # type: ignore[override]
+        user_id: str,
         effective_org_id: UUID | None = None,
     ) -> SaasSecretsStore:
         """Get a SaasSecretsStore instance for the given user.

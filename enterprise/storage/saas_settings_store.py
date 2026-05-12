@@ -38,11 +38,14 @@ class SaasSettingsStore(SettingsStore):
     # reads/writes settings under org A.
     effective_org_id: UUID | None = None
 
-    def _resolve_org_id(self, user: User) -> UUID | None:
+    def _resolve_org_id(self, user: User) -> UUID:
         """Return the effective org id for this request, or the user's
         current org id as a fallback. The caller still needs to verify
         that the user is a member of the returned org (handled in load/
         store by the existing org_members lookup).
+
+        `user.current_org_id` is non-nullable on the ORM model, so the
+        result is always a UUID.
         """
         return self.effective_org_id or user.current_org_id
 
@@ -308,9 +311,9 @@ class SaasSettingsStore(SettingsStore):
             await session.commit()
 
     @classmethod
-    async def get_instance(
+    async def get_instance(  # type: ignore[override]
         cls,
-        user_id: str,  # type: ignore[override]
+        user_id: str,
         effective_org_id: UUID | None = None,
     ) -> SaasSettingsStore:
         """Get a SaasSettingsStore instance for the given user.

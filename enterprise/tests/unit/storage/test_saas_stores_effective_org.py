@@ -185,10 +185,12 @@ async def test_secrets_store_load_filters_by_resolved_org_id(
 
     # Compile the SELECT with literal binds so we can read the org id
     # value out of the WHERE clause without needing a real DB driver.
+    # SQLAlchemy renders UUID literals as the 32-char hex form (no
+    # hyphens), so compare against `.hex` rather than `str(...)`.
     compiled = str(captured_queries[-1].compile(compile_kwargs={'literal_binds': True}))
-    assert str(expected_org_id) in compiled, (
-        f'Expected query to filter by org_id={expected_org_id!s}, '
-        f'compiled SQL was: {compiled}'
+    assert expected_org_id.hex in compiled, (
+        f'Expected query to filter by org_id={expected_org_id!s} '
+        f'(hex={expected_org_id.hex}), compiled SQL was: {compiled}'
     )
 
 
@@ -244,9 +246,9 @@ async def test_secrets_store_store_uses_effective_org_id_when_set():
     ):
         await store.store(item)
 
-    assert captured_org_ids == [EFFECTIVE_ORG_ID], (
-        f'store() wrote under {captured_org_ids[0]!s}, expected {EFFECTIVE_ORG_ID!s}'
-    )
+    assert captured_org_ids == [
+        EFFECTIVE_ORG_ID
+    ], f'store() wrote under {captured_org_ids[0]!s}, expected {EFFECTIVE_ORG_ID!s}'
 
 
 @pytest.mark.asyncio
