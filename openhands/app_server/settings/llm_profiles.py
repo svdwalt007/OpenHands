@@ -145,51 +145,6 @@ class AgentProfile(BaseModel):
             base_url=settings.llm.base_url,
         )
 
-    def apply_to_settings(self, current: Any) -> Any:
-        """Return new agent settings with this profile's identity applied.
-
-        For OpenHands profiles, updates only the ``llm`` field so sibling
-        settings (condenser, MCP config, etc.) are preserved.
-
-        For ACP profiles, updates ``acp_server``, ``acp_model``, and the
-        attribution LLM credentials.  If ``current`` is already an
-        :class:`~openhands.sdk.settings.ACPAgentSettings`, non-profile
-        deployment fields (``acp_command``, ``acp_args``, ``acp_env``) are
-        preserved; otherwise fresh ``ACPAgentSettings`` are created at
-        defaults.
-
-        Uses lazy imports to avoid a circular dependency between
-        ``llm_profiles`` (app-server layer) and the SDK.
-        """
-        from openhands.sdk.llm import LLM
-        from openhands.sdk.settings import ACPAgentSettings, OpenHandsAgentSettings
-
-        if self.agent_kind == 'openhands':
-            llm = LLM(model=self.model, api_key=self.api_key, base_url=self.base_url)
-            if isinstance(current, ACPAgentSettings):
-                # Cross-kind switch: fresh OpenHands settings at defaults.
-                return OpenHandsAgentSettings(llm=llm)
-            return current.model_copy(update={'llm': llm})
-
-        # ACP profile
-        attribution_llm = LLM(
-            model=self.acp_model or 'acp-managed',
-            api_key=self.api_key,
-            base_url=self.base_url,
-        )
-        if isinstance(current, ACPAgentSettings):
-            return current.model_copy(
-                update={
-                    'acp_server': self.acp_server,
-                    'acp_model': self.acp_model,
-                    'llm': attribution_llm,
-                }
-            )
-        return ACPAgentSettings(
-            acp_server=self.acp_server,
-            acp_model=self.acp_model,
-            llm=attribution_llm,
-        )
 
 
 class StrictLLM(LLM):

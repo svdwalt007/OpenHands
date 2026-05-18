@@ -689,41 +689,6 @@ def test_agent_profile_from_acp_settings():
     assert p.base_url == 'https://proxy.example.com'
 
 
-# ── AgentProfile.apply_to_settings ────────────────────────────────
-
-
-def test_apply_to_settings_openhands_profile():
-    current = OpenHandsAgentSettings(llm=LLM(model='openai/gpt-4o'))
-    profile = AgentProfile(model='anthropic/claude-opus-4', api_key=SecretStr('sk-ant'))
-
-    result = profile.apply_to_settings(current)
-
-    assert isinstance(result, OpenHandsAgentSettings)
-    assert result.llm.model == 'anthropic/claude-opus-4'
-    assert result.llm.api_key.get_secret_value() == 'sk-ant'
-
-
-def test_apply_to_settings_acp_profile_from_openhands():
-    current = OpenHandsAgentSettings(llm=LLM(model='openai/gpt-4o'))
-    profile = AgentProfile(agent_kind='acp', acp_server='claude-code', acp_model='claude-opus-4-7')
-
-    result = profile.apply_to_settings(current)
-
-    assert isinstance(result, ACPAgentSettings)
-    assert result.acp_server == 'claude-code'
-    assert result.acp_model == 'claude-opus-4-7'
-
-
-def test_apply_to_settings_acp_profile_preserves_deployment():
-    current = ACPAgentSettings(acp_server='codex', acp_command=['custom-bin'])
-    profile = AgentProfile(agent_kind='acp', acp_server='gemini-cli', acp_model='gemini-2.5')
-
-    result = profile.apply_to_settings(current)
-
-    assert result.acp_server == 'gemini-cli'
-    assert result.acp_command == ['custom-bin']
-
-
 # ── _secret_eq helper ─────────────────────────────────────────────
 
 

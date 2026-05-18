@@ -340,13 +340,46 @@ class Settings(BaseModel):
     def switch_to_profile(self, name: str) -> None:
         """Switch ``agent_settings`` to a saved profile.
 
-        Delegates all switching logic to :meth:`AgentProfile.apply_to_settings`
-        so the cross-kind behavior can be tested in isolation.
+        For OpenHands profiles, updates only the ``llm`` field so sibling
+        settings (condenser, MCP config, etc.) are preserved.
+
+        For ACP profiles, updates ``acp_server``, ``acp_model``, and the
+        attribution LLM credentials.  If already in ACP mode, non-profile
+        deployment fields (``acp_command``, ``acp_args``, ``acp_env``) are
+        preserved; otherwise fresh :class:`ACPAgentSettings` are created at
+        defaults.
 
         Raises :class:`ProfileNotFoundError` if ``name`` isn't a saved profile.
         """
+        from openhands.sdk.llm import LLM
+
         profile = self.llm_profiles.require(name)
-        self.agent_settings = profile.apply_to_settings(self.agent_settings)
+
+        if profile.agent_kind == 'openhands':
+            llm = LLM(model=profile.model, api_key=profile.api_key, base_url=profile.base_url)
+            if isinstance(self.agent_settings, ACPAgentSettings):
+                self.agent_settings = OpenHandsAgentSettings(llm=llm)
+            else:
+                self.agent_settings = self.agent_settings.model_copy(update={'llm': llm})
+        else:
+            attribution_llm = LLM(
+                model=profile.acp_model or 'acp-managed',
+                api_key=profile.api_key,
+                base_url=profile.base_url,
+            )
+            if isinstance(self.agent_settings, ACPAgentSettings):
+                self.agent_settings = self.agent_settings.model_copy(update={
+                    'acp_server': profile.acp_server,
+                    'acp_model': profile.acp_model,
+                    'llm': attribution_llm,
+                })
+            else:
+                self.agent_settings = ACPAgentSettings(
+                    acp_server=profile.acp_server,
+                    acp_model=profile.acp_model,
+                    llm=attribution_llm,
+                )
+
         self.llm_profiles.active = name
 
     def delete_profile(self, name: str) -> bool:
