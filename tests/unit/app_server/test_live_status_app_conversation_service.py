@@ -3663,3 +3663,78 @@ class TestSynthesizeAcpResumeInitialMessage:
         assert '[TOOL USE: Execute Code]' in text
         assert '[ASSISTANT]: All done' in text
         assert '--- End of prior session ---' in text
+
+    @pytest.mark.asyncio
+    async def test_double_resume_guard(self, service):
+        """A message already starting with the marker is not re-wrapped."""
+        already_resumed = SendMessageRequest(
+            role='user',
+            content=[TextContent(type='text', text='<<RESUMED CONVERSATION>>\nprior history')],
+        )
+        # search_events should never be called
+        service.event_service.search_events = AsyncMock()
+
+        result = await service._synthesize_acp_resume_initial_message(
+            uuid4(), already_resumed
+        )
+
+        assert result is already_resumed
+        service.event_service.search_events.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_event_fetch_error_returns_initial_message(self, service):
+        """If search_events raises, fall back to initial_message unchanged."""
+        service.event_service.search_events = AsyncMock(
+            side_effect=RuntimeError('storage unavailable')
+        )
+        original = SendMessageRequest(
+            role='user', content=[TextContent(type='text', text='My task')]
+        )
+
+        result = await service._synthesize_acp_resume_initial_message(uuid4(), original)
+
+        assert result is original
+
+    @pytest.mark.asyncio
+    async def test_new_user_message_preserved_as_second_content_block(self, service):
+        """When a new user message accompanies prior events, both appear in content."""
+        events = [self._make_message_event('user', 'Prior task')]
+        service.event_service.search_events = AsyncMock(
+            return_value=self._make_page(events)
+        )
+        new_msg = SendMessageRequest(
+            role='user',
+            content=[TextContent(type='text', text='Now do the next step.')],
+        )
+
+        result = await service._synthesize_acp_resume_initial_message(uuid4(), new_msg)
+
+        assert result is not None
+        assert len(result.content) == 2
+        assert '<<RESUMED CONVERSATION>>' in result.content[0].text
+        assert result.content[1].text == 'Now do the next step.'
+
+    @pytest.mark.asyncio
+    async def test_tool_events_include_raw_input_output(self, service):
+        """raw_input and raw_output are included in the tool summary."""
+        from openhands.sdk.event.acp_tool_call import ACPToolCallEvent
+
+        tool = ACPToolCallEvent(
+            source='agent',
+            tool_call_id='tc-99',
+            title='Edit File',
+            status='completed',
+            raw_input={'path': 'auth.py', 'content': 'def login(): pass'},
+            raw_output='ok',
+        )
+        service.event_service.search_events = AsyncMock(
+            return_value=self._make_page([tool])
+        )
+
+        result = await service._synthesize_acp_resume_initial_message(uuid4())
+
+        assert result is not None
+        text = result.content[0].text
+        assert 'input=' in text
+        assert 'auth.py' in text
+        assert 'output=ok' in text

@@ -122,10 +122,31 @@ from openhands.tools.preset.planning import (
 _conversation_info_type_adapter = TypeAdapter(list[ConversationInfo | None])
 _logger = logging.getLogger(__name__)
 
-# Maximum events fetched when synthesizing a bootstrap-prompt resume message
-# (Solution A of issue #14260).  Keeps the resume message from growing unbounded
-# on very long conversations.
-_ACP_RESUME_MAX_EVENTS = 200
+# Character limits for bootstrap-prompt resume (Solution A of issue #14260).
+_ACP_RESUME_CONTEXT_MAX_CHARS = 60_000  # total resume block
+_ACP_RESUME_MESSAGE_MAX_CHARS = 8_000   # per message turn
+_ACP_RESUME_TOOL_MAX_CHARS = 2_000      # per tool event
+_ACP_RESUME_CONTEXT_MARKER = '<<RESUMED CONVERSATION>>'
+
+
+def _truncate_text(text: str, max_chars: int) -> str:
+    if len(text) <= max_chars:
+        return text
+    return text[: max_chars - 3] + '...'
+
+
+def _content_to_text(content: list) -> str:
+    parts: list[str] = []
+    for item in content:
+        if isinstance(item, TextContent):
+            parts.append(item.text)
+            continue
+        image_urls = getattr(item, 'image_urls', None)
+        if image_urls:
+            parts.append(f'[Image: {len(image_urls)} URL(s)]')
+            continue
+        parts.append(f'[{type(item).__name__}]')
+    return '\n'.join(p for p in parts if p)
 
 
 # Planning agent instruction to prevent "Ready to proceed?" behavior
@@ -1450,7 +1471,9 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             return request
 
     async def _synthesize_acp_resume_initial_message(
-        self, conversation_id: UUID
+        self,
+        conversation_id: UUID,
+        initial_message: SendMessageRequest | None = None,
     ) -> SendMessageRequest | None:
         """Build a bootstrap-prompt resume message from the durable event store.
 
@@ -1460,35 +1483,79 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         message (Solution A of issue #14260).
 
         Returns ``None`` when there are no prior events (fresh conversation).
+        If ``initial_message`` is provided it is appended after the history block
+        so the agent receives both context and the new user turn.
         """
-        # Fetch newest-first so that when the conversation exceeds
-        # _ACP_RESUME_MAX_EVENTS we keep the most recent context, not the oldest.
+        # Guard: don't double-wrap an already-synthesized resume message.
+        if initial_message and initial_message.content:
+            first_text = getattr(initial_message.content[0], 'text', None)
+            if isinstance(first_text, str) and first_text.startswith(
+                _ACP_RESUME_CONTEXT_MARKER
+            ):
+                return initial_message
+
+        # Fetch newest-first so that when the conversation is very long we keep
+        # the most recent context.  Pagination stops once the rendered text would
+        # exceed _ACP_RESUME_CONTEXT_MAX_CHARS anyway.
         all_events: list = []
-        page_id: str | None = None
-        while len(all_events) < _ACP_RESUME_MAX_EVENTS:
-            page = await self.event_service.search_events(
+        try:
+            page_id: str | None = None
+            while True:
+                page = await self.event_service.search_events(
+                    conversation_id,
+                    sort_order=EventSortOrder.TIMESTAMP_DESC,
+                    page_id=page_id,
+                    limit=100,
+                )
+                all_events.extend(page.items)
+                if page.next_page_id is None:
+                    break
+                page_id = page.next_page_id
+        except Exception:
+            _logger.warning(
+                'Failed to fetch events for ACP resume of conversation %s',
                 conversation_id,
-                sort_order=EventSortOrder.TIMESTAMP_DESC,
-                page_id=page_id,
-                limit=100,
+                exc_info=True,
             )
-            all_events.extend(page.items)
-            if len(all_events) >= _ACP_RESUME_MAX_EVENTS:
-                all_events = all_events[:_ACP_RESUME_MAX_EVENTS]
-                break
-            if page.next_page_id is None:
-                break
-            page_id = page.next_page_id
+            return initial_message
         all_events.reverse()
 
-        relevant = [
-            e for e in all_events if isinstance(e, (MessageEvent, ACPToolCallEvent))
-        ]
-        if not relevant:
+        lines: list[str] = []
+        for event in all_events:
+            if isinstance(event, MessageEvent):
+                role = event.llm_message.role
+                role_label = '[USER]' if role == 'user' else '[ASSISTANT]'
+                text = _truncate_text(
+                    _content_to_text(event.llm_message.content).strip(),
+                    _ACP_RESUME_MESSAGE_MAX_CHARS,
+                )
+                if text:
+                    lines.append(f'{role_label}: {text}')
+                    lines.append('')
+            elif isinstance(event, ACPToolCallEvent):
+                status = 'failed' if event.is_error else (event.status or 'completed')
+                name = event.title or event.tool_kind or 'tool'
+                details: list[str] = []
+                if event.raw_input:
+                    details.append(f'input={_truncate_text(str(event.raw_input), 500)}')
+                if event.raw_output:
+                    details.append(
+                        f'output={_truncate_text(str(event.raw_output), 500)}'
+                    )
+                detail_str = f'\n  {"; ".join(details)}' if details else ''
+                lines.append(
+                    _truncate_text(
+                        f'[TOOL USE: {name}] ({status}){detail_str}',
+                        _ACP_RESUME_TOOL_MAX_CHARS,
+                    )
+                )
+                lines.append('')
+
+        if not lines:
             return None
 
-        lines: list[str] = [
-            '<<RESUMED CONVERSATION>>',
+        header = [
+            _ACP_RESUME_CONTEXT_MARKER,
             '',
             (
                 'The sandbox was recycled and the ACP agent session storage was lost. '
@@ -1497,36 +1564,23 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             ),
             '',
         ]
-        for event in relevant:
-            if isinstance(event, MessageEvent):
-                role = event.llm_message.role
-                role_label = '[USER]' if role == 'user' else '[ASSISTANT]'
-                content = event.llm_message.content
-                text_parts = []
-                for c in content:
-                    if isinstance(c, TextContent):
-                        text_parts.append(c.text)
-                    else:
-                        _logger.warning(
-                            'Skipping non-text content in ACP resume: %s',
-                            type(c).__name__,
-                        )
-                text = ' '.join(text_parts).strip()
-                if text:
-                    lines.append(f'{role_label}: {text}')
-                    lines.append('')
-            elif isinstance(event, ACPToolCallEvent):
-                status = 'failed' if event.is_error else (event.status or 'completed')
-                name = event.title or event.tool_kind or 'tool'
-                lines.append(f'[TOOL USE: {name}] ({status})')
-                lines.append('')
+        footer = ['--- End of prior session ---']
+        resume_text = _truncate_text(
+            '\n'.join(header + lines + footer),
+            _ACP_RESUME_CONTEXT_MAX_CHARS,
+        )
 
-        lines.append('--- End of prior session ---')
-        resume_text = '\n'.join(lines)
+        if initial_message is None:
+            return SendMessageRequest(
+                role='user',
+                content=[TextContent(type='text', text=resume_text)],
+            )
 
+        # Preserve the new user turn as a separate content block after the history.
         return SendMessageRequest(
-            role='user',
-            content=[TextContent(type='text', text=resume_text)],
+            role=initial_message.role,
+            content=[TextContent(type='text', text=resume_text), *initial_message.content],
+            run=getattr(initial_message, 'run', None),
         )
 
     async def _build_acp_start_conversation_request(
@@ -1587,11 +1641,12 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         # --- bootstrap-prompt resume (Solution A of issue #14260) -----------
         # If this conversation has prior events in the durable store the sandbox
         # was recycled and the ACP server's session storage is gone.  Synthesize
-        # the history as the first user message so the agent has context.
-        # On a restart initial_message is always None (no new user turn is sent).
-        resume_msg = await self._synthesize_acp_resume_initial_message(conversation_id)
-        if resume_msg is not None:
-            initial_message = resume_msg
+        # the history as the opening content block so the agent has context.
+        resume_result = await self._synthesize_acp_resume_initial_message(
+            conversation_id, initial_message
+        )
+        if resume_result is not None:
+            initial_message = resume_result
 
         # --- build the ACP agent ------------------------------------------
         acp_settings = user.agent_settings  # already verified to be ACPAgentSettings
