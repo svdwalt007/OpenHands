@@ -37,6 +37,8 @@ def get_llm_metadata(
     """Generate LLM metadata for OpenHands V1 conversations.
 
     This metadata is passed to the LiteLLM proxy for tracing and analytics.
+    Repository tags use concise filter prefixes (``repo:`` and ``branch:``)
+    while metadata keys use explicit field names.
 
     Args:
         model_name: Name of the LLM model

@@ -854,6 +854,7 @@ class TestLiveStatusAppConversationService:
         assert metadata['selected_branch'] == 'main'
         assert 'repo:OpenHands/software-agent-sdk' in metadata['tags']
         assert 'branch:main' in metadata['tags']
+        assert 'git_provider:github' in metadata['tags']
 
     @patch(
         'openhands.app_server.app_conversation.live_status_app_conversation_service.get_default_tools',
