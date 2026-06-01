@@ -206,6 +206,9 @@ class AzureDevOpsService(
                 if 'Link' in response.headers:
                     headers['Link'] = response.headers['Link']
 
+                if not response.content:
+                    return {}, headers
+
                 return response.json(), headers
 
         except httpx.HTTPStatusError as e:

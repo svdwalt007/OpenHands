@@ -2,6 +2,7 @@
 
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 from integrations.azure_devops.azure_devops_service import SaaSAzureDevOpsService
 from pydantic import SecretStr
@@ -135,6 +136,27 @@ async def test_work_item_comment_urls_do_not_duplicate_organization():
         'https://dev.azure.com/alonaking/My%20Project/_apis/wit/workItems/42/'
     )
     assert 'alonaking/alonaking' not in url
+
+
+@pytest.mark.asyncio
+async def test_make_request_accepts_successful_empty_response_body():
+    service = SaaSAzureDevOpsService(token=SecretStr('token'), base_domain='alonaking')
+    request = httpx.Request('DELETE', 'https://dev.azure.com/alonaking/_apis/hooks/1')
+    response = httpx.Response(204, request=request)
+
+    with patch.object(
+        service,
+        'execute_request',
+        new_callable=AsyncMock,
+        return_value=response,
+    ):
+        body, headers = await service._make_request(
+            url='https://dev.azure.com/alonaking/_apis/hooks/1',
+            method=RequestMethod.DELETE,
+        )
+
+    assert body == {}
+    assert headers == {}
 
 
 @pytest.mark.asyncio
