@@ -3224,6 +3224,15 @@ class TestBuildAcpStartConversationRequestSecrets:
     Covers issue #14167: secrets from the Secrets panel and git provider
     tokens must be available to ACP subprocesses as environment variables,
     mirroring how they flow into the regular OpenHands sandbox.
+
+    The provider-credential cases below assert the **post-#3464 contract**:
+    ``create_agent()`` routes the ACP provider creds (``llm.api_key`` /
+    ``base_url``) onto ``agent_context.secrets``, NOT ``acp_env``. They
+    therefore FAIL while ``openhands-sdk`` is pinned to a release *before*
+    software-agent-sdk #3464 (which still folds the creds into ``acp_env``) and
+    only pass once the pin is bumped past it — this is the intended merge gate
+    for this PR. See OpenHands/agent-canvas#1039 and the interim workaround in
+    OpenHands#14620.
     """
 
     @pytest.fixture
@@ -3340,23 +3349,19 @@ class TestBuildAcpStartConversationRequestSecrets:
     async def test_provider_env_in_agent_context_not_acp_env(self, service, tmp_path):
         """LLM credentials land in agent_context.secrets, never acp_env.
 
-        The provider cred (from ``llm.api_key``) overrides a same-named
-        Secrets-panel entry, preserving the prior ``provider env > panel``
-        priority — now expressed within the single ``agent_context.secrets``
-        channel rather than across ``acp_env`` vs ``agent_context``.
+        create_agent() folds the provider cred (from ``llm.api_key``) into
+        agent_context.secrets. When no conflicting panel secret exists the
+        provider cred is the only entry for that name.
         """
         user = self._make_acp_user(acp_server='claude-code', api_key='sk-ui-key')
-        panel_secret = StaticSecret(value=SecretStr('sk-from-secrets-panel'))
-        service._setup_secrets_for_git_providers = AsyncMock(
-            return_value={'ANTHROPIC_API_KEY': panel_secret}
-        )
+        service._setup_secrets_for_git_providers = AsyncMock(return_value={})
 
         request = await self._call_build(service, user, tmp_path)
 
         # Provider creds no longer ride acp_env.
         assert request.agent.acp_env.get('ANTHROPIC_API_KEY') is None
         assert request.agent.agent_context is not None
-        # Provider env wins over the same-named panel secret.
+        # Provider cred lands in agent_context.secrets.
         assert (
             request.agent.agent_context.secrets.get('ANTHROPIC_API_KEY').get_value()
             == 'sk-ui-key'
@@ -3428,13 +3433,15 @@ class TestBuildAcpStartConversationRequestSecrets:
         assert request.agent.agent_context.secrets.get('GH_TOKEN') is gh_secret
 
     @pytest.mark.asyncio
-    async def test_panel_secret_does_not_override_provider_env(self, service, tmp_path):
-        """Provider env (from ``llm.api_key``) keeps priority over panel secrets.
+    async def test_panel_secret_overrides_provider_env_when_conflicting(
+        self, service, tmp_path
+    ):
+        """Explicitly-set panel secret wins over the provider-derived cred.
 
-        If a user has both a UI-saved Claude Code LLM key AND a same-named
-        ``ANTHROPIC_API_KEY`` in the Secrets panel, the LLM-saved one wins.
-        Both now ride ``agent_context.secrets`` (not ``acp_env``); the provider
-        cred is folded in last so it overrides the panel entry of the same name.
+        The SDK merges as ``{**provider_secrets, **existing}`` so an explicit
+        panel entry for the same key name overrides the auto-derived provider
+        cred. This lets users override the LLM-settings key via the Secrets
+        panel when they need to.
         """
         user = self._make_acp_user(acp_server='claude-code', api_key='sk-ui-key')
         panel_secret = StaticSecret(value=SecretStr('sk-from-secrets-panel'))
@@ -3446,11 +3453,11 @@ class TestBuildAcpStartConversationRequestSecrets:
 
         # Provider creds no longer ride acp_env.
         assert request.agent.acp_env.get('ANTHROPIC_API_KEY') is None
-        # The provider cred overrides the same-named panel secret.
+        # The explicit panel entry wins over the provider-derived cred.
         assert request.agent.agent_context is not None
         assert (
             request.agent.agent_context.secrets.get('ANTHROPIC_API_KEY').get_value()
-            == 'sk-ui-key'
+            == 'sk-from-secrets-panel'
         )
 
     @pytest.mark.asyncio
