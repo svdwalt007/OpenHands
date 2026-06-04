@@ -432,7 +432,9 @@ async def test_get_current_workspace_link_found(
 @patch('server.routes.integration.jira_dc.get_user_auth')
 @patch('server.routes.integration.jira_dc.jira_dc_manager', new_callable=AsyncMock)
 @patch('server.routes.integration.jira_dc.JIRA_DC_ENABLE_OAUTH', True)
-@patch('server.routes.integration.jira_dc.JIRA_DC_BASE_URL', 'https://current-jira.test')
+@patch(
+    'server.routes.integration.jira_dc.JIRA_DC_BASE_URL', 'https://current-jira.test'
+)
 async def test_get_current_workspace_link_ignores_stale_configured_host_link(
     mock_manager, mock_get_auth, mock_request, mock_user_auth
 ):
