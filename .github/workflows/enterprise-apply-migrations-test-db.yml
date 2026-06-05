@@ -16,6 +16,8 @@ on:
     paths:
       - 'enterprise/migrations/**'
       - 'enterprise/alembic.ini'
+      - 'scripts/check_enterprise_migration_integrity.py'
+      - '.github/workflows/enterprise-check-migrations.yml'
       - '.github/workflows/enterprise-apply-migrations-test-db.yml'
 
   # Run after Enterprise Check Migrations completes successfully.
