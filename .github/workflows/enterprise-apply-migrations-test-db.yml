@@ -6,10 +6,11 @@ name: Enterprise Apply Migrations on Test DB
 # merge/deploy instead of in the staging migrate-db init container — e.g. a
 # CREATE INDEX CONCURRENTLY in an autocommit_block, which crashes under env.py.
 #
-# This workflow runs in two scenarios:
-# 1. Directly on pull_request when migration files are modified (path-filter match).
-# 2. After Enterprise Check Migrations completes successfully (workflow_run trigger),
-#    providing a gating layer that ensures static checks pass first.
+# This workflow runs when:
+# 1. Migration files or alembic.ini are modified (path-filter match) - runs apply-migrations.
+# 2. Check script or check workflow is modified (path-filter match) - only runs check-migrations.
+#
+# The workflow_run trigger is deprecated because it runs on base branch, not PR branch.
 
 on:
   pull_request:
@@ -20,9 +21,9 @@ on:
       - '.github/workflows/enterprise-check-migrations.yml'
       - '.github/workflows/enterprise-apply-migrations-test-db.yml'
 
-  # Run after Enterprise Check Migrations completes successfully.
-  # This provides the gating behavior: apply-migrations only runs if
-  # check-migrations passes (static integrity, up-to-date check).
+  # DEPRECATED: workflow_run runs on base branch, not PR branch, so it can't test
+  # migration changes in the PR. Use the pull_request trigger instead which correctly
+  # checks out the PR branch.
   workflow_run:
     workflows: ["Enterprise Check Migrations"]
     types: [completed]
@@ -32,19 +33,46 @@ on:
 # (e.g. after a new push) — never another PR. cancel-in-progress is safe here
 # because each run uses its own throwaway Postgres service that is destroyed with
 # the runner: cancelling mid-migration leaves no shared/persistent state behind.
+#
+# Note: workflow_run triggered runs use the base branch as head_ref, so they get
+# their own concurrency group and won't be cancelled by pull_request runs.
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
+  check-migrations:
+    name: Check if migrations present
+    runs-on: ubuntu-latest
+    outputs:
+      has_migrations: ${{ steps.check.outputs.has_migrations }}
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Check for migration file changes
+        id: check
+        run: |
+          # Check if any migration files or alembic.ini are modified
+          if git diff --name-only origin/${{ github.base_ref }}..HEAD | grep -qE '^(enterprise/migrations/|enterprise/alembic.ini)'; then
+            echo "has_migrations=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_migrations=false" >> $GITHUB_OUTPUT
+          fi
+
   apply-migrations:
     name: Apply migrations on test DB
     runs-on: ubuntu-24.04
-    # Only run when triggered by workflow_run with success conclusion.
-    # This prevents double-running when a PR directly modifies migration files:
-    # - workflow_run is null when triggered by pull_request (skip this job)
-    # - workflow_run.conclusion is 'success' when triggered by workflow_run (run this job)
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # Run when triggered by workflow_run with success conclusion (backwards compat),
+    # OR when triggered via pull_request with migration/check script changes.
+    # Skip if no migration files are modified (checked via git diff).
+    if: |
+      ${{ github.event.workflow_run.conclusion == 'success' }} ||
+      (github.event_name == 'pull_request' && needs.check-migrations.outputs.has_migrations == 'true')
+    needs: [check-migrations]
     strategy:
       matrix:
         # Test both the production driver (pg8000) and the psycopg2 fallback.
