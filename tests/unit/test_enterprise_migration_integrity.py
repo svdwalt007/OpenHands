@@ -1,23 +1,32 @@
 from __future__ import annotations
 
 import importlib.util
-import itertools
+import sys
 from pathlib import Path
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-MODULE_COUNTER = itertools.count()
+MODULE_NAME = 'check_enterprise_migration_integrity'
+_saved_spec = None
 
 
 def load_module():
+    global _saved_spec
+    if _saved_spec is not None:
+        module = importlib.util.module_from_spec(_saved_spec)
+        spec_loader = _saved_spec.loader
+        spec_loader.exec_module(module)
+        sys.modules[MODULE_NAME] = module
+        return module
     path = ROOT / 'scripts' / 'check_enterprise_migration_integrity.py'
-    module_name = f'test_{path.stem}_{next(MODULE_COUNTER)}'
-    spec = importlib.util.spec_from_file_location(module_name, path)
+    spec = importlib.util.spec_from_file_location(MODULE_NAME, path)
     if spec is None or spec.loader is None:
         raise AssertionError(f'Unable to load module from {path}')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    _saved_spec = spec
+    sys.modules[MODULE_NAME] = module
     return module
 
 
