@@ -173,6 +173,7 @@ def _get_feature_flags() -> WebClientFeatureFlags:
         hide_integrations_page=os.getenv('HIDE_INTEGRATIONS_PAGE', 'false') == 'true',
         enable_acp=os.getenv('ENABLE_ACP', 'false') == 'true',
         enable_onboarding=os.getenv('OH_ENABLE_ONBOARDING', 'false') == 'true',
+        enable_automations=os.getenv('ENABLE_AUTOMATIONS', 'false') == 'true',
     )
 
 

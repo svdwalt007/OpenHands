@@ -31,6 +31,7 @@ export interface WebClientFeatureFlags {
   enable_acp?: boolean;
   deployment_mode?: DeploymentMode;
   enable_onboarding: boolean;
+  enable_automations?: boolean;
 }
 
 export interface ACPProviderConfig {
