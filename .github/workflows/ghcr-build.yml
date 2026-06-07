@@ -8,6 +8,8 @@ on:
       - main
       - "saas-rel-*"
       - "oss-rel-*"
+      # POC: build images on push to this feature branch. Remove before merge.
+      - "jl/runtime-v2-saas-opt-in"
   pull_request:
   workflow_dispatch:
     inputs:
