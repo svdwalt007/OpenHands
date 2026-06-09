@@ -10659,7 +10659,7 @@
     "ca": "Proveïdor LLM personalitzat"
   },
   "SETTINGS$LLM_PROFILE_NAME": {
-    "en": "LLM profile name",
+    "en": "LLM Profile Name",
     "ja": "LLM プロファイル名",
     "zh-CN": "LLM 配置文件名称",
     "zh-TW": "LLM 設定檔名稱",
