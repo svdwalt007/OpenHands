@@ -35,9 +35,9 @@ from storage.jira_dc_integration_store import JiraDcIntegrationStore
 from storage.jira_dc_user import JiraDcUser
 from storage.jira_dc_workspace import JiraDcWorkspace
 
+from openhands.app_server.errors import ConcurrencyLimitError
 from openhands.app_server.integrations.provider import ProviderHandler
 from openhands.app_server.integrations.service_types import Comment, Repository
-from openhands.app_server.errors import ConcurrencyLimitError
 from openhands.app_server.shared import server_config
 from openhands.app_server.types import (
     LLMAuthenticationError,
@@ -513,7 +513,7 @@ class JiraDcManager(Manager[JiraDcViewInterface]):
             detail = e.detail if isinstance(e.detail, dict) else {}
             limit = detail.get('limit', '?')
             logger.warning(
-                f'[Jira DC] Concurrency limit reached',
+                '[Jira DC] Concurrency limit reached',
                 extra={'limit': limit, 'current': detail.get('current')},
             )
             msg_info = (

@@ -26,8 +26,8 @@ from server.auth.constants import BITBUCKET_DATA_CENTER_BOT_TOKEN
 from server.auth.token_manager import TokenManager
 from storage.bitbucket_dc_webhook_store import BitbucketDCWebhookStore
 
-from openhands.app_server.integrations.provider import ProviderToken, ProviderType
 from openhands.app_server.errors import ConcurrencyLimitError
+from openhands.app_server.integrations.provider import ProviderToken, ProviderType
 from openhands.app_server.secrets.secrets_models import Secrets
 from openhands.app_server.types import (
     LLMAuthenticationError,

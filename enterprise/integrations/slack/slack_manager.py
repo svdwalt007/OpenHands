@@ -30,13 +30,13 @@ from storage.database import a_session_maker
 from storage.redis import get_redis_client_async
 from storage.slack_user import SlackUser
 
+from openhands.app_server.errors import ConcurrencyLimitError
 from openhands.app_server.integrations.provider import ProviderHandler
 from openhands.app_server.integrations.service_types import (
     AuthenticationError,
     ProviderTimeoutError,
     Repository,
 )
-from openhands.app_server.errors import ConcurrencyLimitError
 from openhands.app_server.shared import server_config
 from openhands.app_server.types import (
     LLMAuthenticationError,

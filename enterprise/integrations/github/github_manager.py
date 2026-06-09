@@ -31,8 +31,8 @@ from server.auth.auth_error import ExpiredError
 from server.auth.constants import GITHUB_APP_CLIENT_ID, GITHUB_APP_PRIVATE_KEY
 from server.auth.token_manager import TokenManager
 
-from openhands.app_server.integrations.provider import ProviderToken, ProviderType
 from openhands.app_server.errors import ConcurrencyLimitError
+from openhands.app_server.integrations.provider import ProviderToken, ProviderType
 from openhands.app_server.integrations.service_types import AuthenticationError
 from openhands.app_server.secrets.secrets_models import Secrets
 from openhands.app_server.types import (

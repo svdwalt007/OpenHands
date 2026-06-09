@@ -220,7 +220,11 @@ class OrgResponse(BaseModel):
             is_personal=str(org.id) == user_id if user_id else False,
             max_concurrent_sandboxes=org.max_concurrent_sandboxes
             if org.max_concurrent_sandboxes is not None
-            else (DEFAULT_PERSONAL_ORG_CONCURRENT_SANDBOXES if str(org.id) == user_id else DEFAULT_COMMERCIAL_ORG_CONCURRENT_SANDBOXES),
+            else (
+                DEFAULT_PERSONAL_ORG_CONCURRENT_SANDBOXES
+                if str(org.id) == user_id
+                else DEFAULT_COMMERCIAL_ORG_CONCURRENT_SANDBOXES
+            ),
         )
 
 
