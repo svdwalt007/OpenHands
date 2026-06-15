@@ -583,14 +583,12 @@ class TestReceiveMessagePayloadProcessingError:
 
     @pytest.fixture
     def mock_token_manager(self):
-        """Create a mock token manager."""
         token_manager = MagicMock()
         token_manager.get_user_id_from_idp_user_id = AsyncMock(return_value=None)
         return token_manager
 
     @pytest.fixture
     def mock_data_collector(self):
-        """Create a mock data collector that raises an exception."""
         data_collector = MagicMock()
         data_collector.process_payload = AsyncMock(
             side_effect=Exception('Database connection timeout')
@@ -599,7 +597,6 @@ class TestReceiveMessagePayloadProcessingError:
 
     @pytest.fixture
     def github_message(self):
-        """Create a sample GitHub message."""
         return Message(
             source=SourceType.GITHUB,
             message={
@@ -636,36 +633,35 @@ class TestReceiveMessagePayloadProcessingError:
         mock_data_collector,
         github_message,
     ):
-        """Test that payload processing failures are logged at error level, not warning.
-
-        This test verifies the fix for issue #14814:
-        A failed GitHub webhook payload-processing operation should be logged at
-        'error' level when it fails entirely (no retry or fallback), not 'warning'.
-        """
+        """Verify payload processing failures are logged at error level, not warning."""
         manager = GithubManager(mock_token_manager, mock_data_collector)
 
         await manager.receive_message(github_message)
 
-        # Verify error level logging was used for payload processing
-        # Check that the specific error message was logged at error level
-        error_calls = mock_logger.error.call_args_list
-        assert any(
-            '[Github]: Error processing payload for gh interaction' in str(call)
-            for call in error_calls
-        ), f"Expected error log about payload processing. Got: {error_calls}"
+        expected_message = '[Github]: Error processing payload for gh interaction'
 
-        # Verify that the payload processing error was logged with exc_info=True
-        for call in error_calls:
-            if '[Github]: Error processing payload for gh interaction' in str(call):
-                assert call.kwargs.get('exc_info') is True
+        # The failure is logged at error level with exc_info so the stack trace is preserved.
+        error_calls = [
+            call
+            for call in mock_logger.error.call_args_list
+            if call.args and call.args[0] == expected_message
+        ]
+        assert error_calls, (
+            f'Expected error log about payload processing. '
+            f'Got: {mock_logger.error.call_args_list}'
+        )
+        assert all(call.kwargs.get('exc_info') is True for call in error_calls)
 
-        # Verify that the payload processing failure was NOT logged at warning level
-        # (this was the bug - it was using warning instead of error)
-        warning_calls = mock_logger.warning.call_args_list
-        assert not any(
-            '[Github]: Error processing payload' in str(call)
-            for call in warning_calls
-        ), f"Payload processing error should not be logged at warning level. Got: {warning_calls}"
+        # It must not be logged at warning level (the bug this fix addresses).
+        warning_calls = [
+            call
+            for call in mock_logger.warning.call_args_list
+            if call.args and call.args[0] == expected_message
+        ]
+        assert not warning_calls, (
+            f'Payload processing error should not be logged at warning level. '
+            f'Got: {warning_calls}'
+        )
 
 
 class TestGetUserNotFoundMessageIntegration:
