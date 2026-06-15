@@ -598,9 +598,20 @@ class AutomationEventService:
                     headers=headers,
                     timeout=aiohttp.ClientTimeout(total=AUTOMATION_SERVICE_TIMEOUT),
                 ) as resp:
-                    if resp.status >= 400:
+                    if resp.status >= 500:
+                        # 5xx = downstream failure, event dropped, user impact
                         # Try JSON first (expected interface), fall back to text
                         # for infrastructure errors (502/503 from load balancer)
+                        try:
+                            body = await resp.json()
+                        except (aiohttp.ContentTypeError, ValueError):
+                            body = await resp.text()
+                        logger.error(
+                            f'[AutomationEventService] Automation service returned '
+                            f'{resp.status} for {source} org {org_id}: {body}'
+                        )
+                    elif resp.status >= 400:
+                        # 4xx = client/contract problem, not a downstream outage
                         try:
                             body = await resp.json()
                         except (aiohttp.ContentTypeError, ValueError):
