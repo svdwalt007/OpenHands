@@ -862,7 +862,9 @@ class TestSendToAutomationService:
             raise asyncio.TimeoutError('Connection timed out')
 
         mock_post_context = MagicMock()
-        mock_post_context.__aenter__ = AsyncMock(side_effect=asyncio.TimeoutError('Connection timed out'))
+        mock_post_context.__aenter__ = AsyncMock(
+            side_effect=asyncio.TimeoutError('Connection timed out')
+        )
         mock_post_context.__aexit__ = AsyncMock(return_value=None)
 
         mock_session_instance = MagicMock()
@@ -890,9 +892,10 @@ class TestSendToAutomationService:
 
             mock_logger.error.assert_called()
             assert 'Timeout' in str(mock_logger.error.call_args)
-            assert 'never delivered' in str(mock_logger.error.call_args).lower() or 'timeout' in str(
-                mock_logger.error.call_args
-            ).lower()
+            assert (
+                'never delivered' in str(mock_logger.error.call_args).lower()
+                or 'timeout' in str(mock_logger.error.call_args).lower()
+            )
 
     @pytest.mark.asyncio
     async def test_send_client_error_logs_error(self, mock_token_manager):
@@ -911,7 +914,9 @@ class TestSendToAutomationService:
 
         # Create a mock that raises ClientError when used as async context manager
         mock_post_context = MagicMock()
-        mock_post_context.__aenter__ = AsyncMock(side_effect=aiohttp.ClientError('Connection refused'))
+        mock_post_context.__aenter__ = AsyncMock(
+            side_effect=aiohttp.ClientError('Connection refused')
+        )
         mock_post_context.__aexit__ = AsyncMock(return_value=None)
 
         mock_session_instance.post = MagicMock(return_value=mock_post_context)
