@@ -1,0 +1,84 @@
+# OpenHands — named LLM profiles for the headless SDK runner (scripts/oh_run.py)
+#
+# WHY THIS FILE EXISTS
+#   OpenHands V1 (this checkout, v1.8.0 on openhands-sdk 1.28.0) does NOT consume
+#   V0-style [llm.<name>] named configs or a `--llm-config` CLI flag — those were
+#   removed with the old openhands/core tree. The V1 web app reads its model from
+#   the Settings UI (persisted under ~/.openhands), and the standalone `openhands`
+#   CLI reads LLM_MODEL / LLM_API_KEY / LLM_BASE_URL env vars
+#   (`openhands --headless --override-with-envs`).
+#
+#   scripts/oh_run.py re-introduces named profiles purely at the runner layer.
+#   Copy this file to `config.toml` (git-ignored) and use it as-is — it carries
+#   NO secrets. Each profile names an env var; the key is resolved from .env /
+#   the environment at runtime.
+#
+# Model slugs follow LiteLLM provider conventions. Verify the newest slugs against
+# https://docs.litellm.ai/docs/providers — provider strings drift between releases.
+
+[core]
+# Default workspace if --repo is omitted. The runner overrides this per invocation.
+workspace_base = "./workspace"
+max_iterations = 100
+
+# --- Frontier: Anthropic Claude Opus 4.8 -----------------------------------
+[llm.opus]
+model = "anthropic/claude-opus-4-8"
+api_key_env = "ANTHROPIC_API_KEY"
+native_tool_calling = true
+
+# --- Frontier: Google Gemini 3.1 Pro ---------------------------------------
+[llm.gemini]
+model = "gemini/gemini-3.1-pro-preview"
+api_key_env = "GEMINI_API_KEY"
+native_tool_calling = true
+
+# --- Local inner-loop: Ollama Qwen3.6-27B (odytrice/qwen3.6:4090-27b, 17 GB) -
+# Ollama runs on the WSL host. The SDK runner also runs on the host, so use
+# localhost. Use http://host.docker.internal:11434 ONLY when the LLM caller is
+# inside a container (e.g. the Docker GUI runtime).
+[llm.local]
+# qwen3.6-27b-agentic is a num_ctx=32768 variant of odytrice/qwen3.6:4090-27b,
+# created with `ollama create` (blob-shared, no extra disk). The base model's
+# Modelfile pins num_ctx=131072 + num_gpu=999, which OOMs/stalls a 24 GB GPU on
+# multi-turn agent runs (turn 1 ok, turn 2 bombs out ~15-30s in). Baking the cap
+# into the model means the standalone CLI and Web GUI get it too, not just this
+# runner. Create it with:
+#   printf 'FROM odytrice/qwen3.6:4090-27b\nPARAMETER num_ctx 32768\n' > /tmp/MF
+#   ollama create qwen3.6-27b-agentic -f /tmp/MF
+model = "ollama_chat/qwen3.6-27b-agentic"
+base_url = "http://localhost:11434"
+native_tool_calling = true
+num_ctx = 32768  # belt-and-braces: also forwarded as options.num_ctx by oh_run.py.
+
+# --- Open-weight gateway: Kimi via OpenRouter (DISABLED — no OpenRouter dep) -
+# Re-enable by uncommenting and setting OPENROUTER_API_KEY in .env.
+#[llm.kimi-openrouter]
+#model = "openrouter/moonshotai/kimi-k2.6"
+#api_key_env = "OPENROUTER_API_KEY"
+#native_tool_calling = true
+
+# --- Open-weight via Ollama Cloud: Kimi K2.6 (kimi-k2.6:cloud) -------------
+# Runs remotely on ollama.com but is reached through the local daemon (:11434).
+# Requires a signed-in Ollama account (`ollama signin`); no LiteLLM api_key.
+[llm.kimi-ollama]
+model = "ollama_chat/kimi-k2.6:cloud"
+base_url = "http://localhost:11434"
+native_tool_calling = true
+
+# --- Open-weight gateway: DeepSeek via OpenRouter (DISABLED — no OpenRouter dep)
+# Re-enable by uncommenting and setting OPENROUTER_API_KEY in .env.
+#[llm.deepseek]
+#model = "openrouter/deepseek/deepseek-v3.2-reasoner"
+#api_key_env = "OPENROUTER_API_KEY"
+#native_tool_calling = true
+
+# --- Draft editor profile --------------------------------------------------
+# NOTE: V1 has no reserved [llm.draft_editor]; the V1 toggle is [agent]
+# enable_llm_editor (see config.template.toml). This block is a convenience
+# profile for cheap, local diff-drafting via the runner — not a reserved name.
+[llm.draft_editor]
+model = "ollama_chat/qwen3.6-27b-agentic"
+base_url = "http://localhost:11434"
+native_tool_calling = true
+num_ctx = 32768  # same GPU-local cap as [llm.local]; see note there.
