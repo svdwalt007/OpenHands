@@ -17,6 +17,9 @@ Examples
 
     poetry run python scripts/oh_run.py --profile opus \
         --repo /home/sean/lwm2m-cov -f task.txt --max-iters 200
+
+    poetry run python scripts/oh_run.py --profile local \
+        --repo /path/to/repo --chat
 """
 
 from __future__ import annotations
@@ -25,6 +28,7 @@ import argparse
 import os
 import sys
 import tomllib
+import uuid
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -108,12 +112,70 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         default='.env',
         help='dotenv file to seed secrets from (default: .env).',
     )
-    task = parser.add_mutually_exclusive_group(required=True)
+    parser.add_argument(
+        '--persist-dir',
+        default='~/.openhands/oh_run',
+        help='Base dir for persisting conversation state/events so runs survive '
+        'and can be resumed (default: ~/.openhands/oh_run). Each conversation is '
+        'stored under <dir>/<id>/.',
+    )
+    parser.add_argument(
+        '--no-persist',
+        action='store_true',
+        help='Disable persistence (ephemeral in-memory store; this is what emits '
+        'the "No persistence_dir provided" warning).',
+    )
+    parser.add_argument(
+        '--resume',
+        metavar='ID',
+        help='Resume a persisted conversation by ID (uses --persist-dir).',
+    )
+    parser.add_argument(
+        '--chat',
+        action='store_true',
+        help='After the initial task (if any), drop into an interactive prompt '
+        'loop; Ctrl-D or /exit to quit.',
+    )
+    task = parser.add_mutually_exclusive_group(required=False)
     task.add_argument('-t', '--task', help='Inline task text.')
     task.add_argument(
         '-f', '--file', help='Path to a file whose contents are the task.'
     )
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if not (args.chat or args.task or args.file):
+        parser.error(
+            'provide a task with -t/-f, or use --chat for an interactive session'
+        )
+    if args.resume and args.no_persist:
+        parser.error('--resume requires persistence; remove --no-persist')
+    return args
+
+
+def _chat_loop(conversation: Conversation) -> None:
+    """Read user messages from stdin and run the agent for each, until EOF/exit.
+
+    ``oh_run.py`` is otherwise one-shot; ``--chat`` keeps the same conversation
+    open so you can steer the agent turn by turn (local models tend to explore
+    then ask for direction rather than finishing autonomously).
+    """
+    print(
+        '\n[oh_run] Interactive chat — type a message and press Enter. '
+        'Ctrl-D or /exit to quit.',
+        flush=True,
+    )
+    while True:
+        try:
+            user_text = input('\nYou › ').strip()
+        except (EOFError, KeyboardInterrupt):
+            print('\n[oh_run] Bye.', flush=True)
+            return
+        if not user_text:
+            continue
+        if user_text in ('/exit', '/quit', '/q'):
+            print('[oh_run] Bye.', flush=True)
+            return
+        conversation.send_message(user_text)
+        conversation.run()
 
 
 def main(argv: list[str]) -> int:
@@ -147,14 +209,41 @@ def main(argv: list[str]) -> int:
         flush=True,
     )
 
+    persistence_dir: str | None = None
+    conversation_id: uuid.UUID | None = None
+    if not args.no_persist:
+        persistence_dir = str(Path(args.persist_dir).expanduser())
+        if args.resume:
+            try:
+                conversation_id = uuid.UUID(args.resume)
+            except ValueError:
+                sys.exit(
+                    f'error: --resume is not a valid conversation ID: {args.resume}'
+                )
+
     agent = get_default_agent(llm=llm, cli_mode=True)
     conversation = Conversation(
         agent=agent,
         workspace=str(repo),
+        persistence_dir=persistence_dir,
+        conversation_id=conversation_id,
+        delete_on_close=False,
         max_iteration_per_run=args.max_iters,
     )
-    conversation.send_message(task_text)
-    conversation.run()
+    if persistence_dir:
+        print(
+            f'[oh_run] conversation={conversation.id} '
+            f'(persisted under {persistence_dir}; resume with '
+            f'--resume {conversation.id})',
+            flush=True,
+        )
+    if task_text:
+        conversation.send_message(task_text)
+        conversation.run()
+
+    if args.chat:
+        _chat_loop(conversation)
+
     return 0
 
 
